@@ -3,54 +3,101 @@ Escriba el codigo que ejecute la accion solicitada.
 """
 
 # pylint: disable=import-outside-toplevel
+import os
+import zipfile
+import pandas as pd
 
 
 def clean_campaign_data():
     """
-    En esta tarea se le pide que limpie los datos de una campaña de
-    marketing realizada por un banco, la cual tiene como fin la
-    recolección de datos de clientes para ofrecerls un préstamo.
-
-    La información recolectada se encuentra en la carpeta
-    files/input/ en varios archivos csv.zip comprimidos para ahorrar
-    espacio en disco.
-
-    Usted debe procesar directamente los archivos comprimidos (sin
-    descomprimirlos). Se desea partir la data en tres archivos csv
-    (sin comprimir): client.csv, campaign.csv y economics.csv.
-    Cada archivo debe tener las columnas indicadas.
-
-    Los tres archivos generados se almacenarán en la carpeta files/output/.
-
-    client.csv:
-    - client_id
-    - age
-    - job: se debe cambiar el "." por "" y el "-" por "_"
-    - marital
-    - education: se debe cambiar "." por "_" y "unknown" por pd.NA
-    - credit_default: convertir a "yes" a 1 y cualquier otro valor a 0
-    - mortage: convertir a "yes" a 1 y cualquier otro valor a 0
-
-    campaign.csv:
-    - client_id
-    - number_contacts
-    - contact_duration
-    - previous_campaing_contacts
-    - previous_outcome: cmabiar "success" por 1, y cualquier otro valor a 0
-    - campaign_outcome: cambiar "yes" por 1 y cualquier otro valor a 0
-    - last_contact_day: crear un valor con el formato "YYYY-MM-DD",
-        combinando los campos "day" y "month" con el año 2022.
-
-    economics.csv:
-    - client_id
-    - const_price_idx
-    - eurobor_three_months
-
-
-
+    Limpieza de datos de campaña de marketing
     """
 
-    return
+    # Crear carpeta output
+    os.makedirs("files/output", exist_ok=True)
+    
+    dfs = []
+    
+    # Leer los 10 archivos zip
+    for i in range(10):
+        zip_path = f"files/input/bank-marketing-campaing-{i}.csv.zip"
+        
+        if not os.path.exists(zip_path):
+            continue
+            
+        with zipfile.ZipFile(zip_path, 'r') as z:
+            archivos = z.namelist()
+            csv_name = [a for a in archivos if a.endswith('.csv')][0]
+            
+            with z.open(csv_name) as f:
+                df = pd.read_csv(f)
+                dfs.append(df)
+    
+    # Combinar todos los datos
+    df = pd.concat(dfs, ignore_index=True)
+    print(f"Total de registros: {len(df)}")
+    
+    # ========== client.csv ==========
+    client = df[['client_id', 'age', 'job', 'marital', 'education', 'credit_default', 'mortgage']].copy()
+    
+    # Limpiar job
+    client['job'] = client['job'].str.replace('.', '', regex=False)
+    client['job'] = client['job'].str.replace('-', '_', regex=False)
+    
+    # Limpiar education
+    client['education'] = client['education'].str.replace('.', '_', regex=False)
+    client['education'] = client['education'].replace('unknown', pd.NA)
+    
+    # Convertir credit_default
+    client['credit_default'] = (client['credit_default'] == 'yes').astype(int)
+    
+    # Convertir mortgage
+    client['mortgage'] = (client['mortgage'] == 'yes').astype(int)
+    
+    # Guardar
+    client.to_csv("files/output/client.csv", index=False)
+    print("✓ client.csv generado")
+    
+    # ========== campaign.csv ==========
+    campaign = df[['client_id', 'number_contacts', 'contact_duration', 
+                   'previous_campaign_contacts', 'previous_outcome', 
+                   'campaign_outcome', 'day', 'month']].copy()
+    
+    # Convertir previous_outcome
+    campaign['previous_outcome'] = (campaign['previous_outcome'] == 'success').astype(int)
+    
+    # Convertir campaign_outcome
+    campaign['campaign_outcome'] = (campaign['campaign_outcome'] == 'yes').astype(int)
+    
+    # Crear fecha
+    month_map = {
+        'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+        'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
+        'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+    }
+    campaign['month_num'] = campaign['month'].map(month_map)
+    campaign['last_contact_date'] = '2022-' + campaign['month_num'] + '-' + campaign['day'].astype(str).str.zfill(2)
+    
+    # Seleccionar las columnas finales
+    campaign = campaign[['client_id', 'number_contacts', 'contact_duration', 
+                         'previous_campaign_contacts', 'previous_outcome', 
+                         'campaign_outcome', 'last_contact_date']]
+    
+    # Guardar
+    campaign.to_csv("files/output/campaign.csv", index=False)
+    print("✓ campaign.csv generado")
+    
+    # ========== economics.csv ==========
+    economics = df[['client_id', 'cons_price_idx', 'euribor_three_months']].copy()
+    
+    # CORREGIDO: usar 'euribor_three_months' (con 'i', no 'o')
+    economics.columns = ['client_id', 'cons_price_idx', 'euribor_three_months']
+    
+    # Guardar
+    economics.to_csv("files/output/economics.csv", index=False)
+    print("✓ economics.csv generado")
+    
+    print("\n✅ ¡Proceso completado exitosamente!")
 
 
 if __name__ == "__main__":
